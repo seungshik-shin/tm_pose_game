@@ -69,7 +69,7 @@ class GameEngine {
     this.startGameLoop();
   }
 
-  stop() {
+  stop(reason = "Unknown") {
     this.isGameActive = false;
     clearInterval(this.gameTimer);
     clearTimeout(this.spawnTimer);
@@ -79,7 +79,7 @@ class GameEngine {
     this.disableTimeSlow();
 
     if (this.onGameEnd) {
-      this.onGameEnd(this.score, this.level);
+      this.onGameEnd(this.score, this.level, reason);
     }
   }
 
@@ -95,7 +95,7 @@ class GameEngine {
       }
 
       if (this.timeLimit <= 0) {
-        this.stop();
+        this.stop("Timeout");
       }
     }, 1000);
   }
@@ -213,7 +213,8 @@ class GameEngine {
           this.notifyEffects();
           // Sound effect for shield break?
         } else {
-          this.stop(); // Game Over
+        } else {
+          this.stop("Bomb"); // Game Over
         }
         break;
       case "Shield":

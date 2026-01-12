@@ -179,8 +179,12 @@ function setupGameCallbacks() {
   });
 
   // Game End
-  gameEngine.setGameEndCallback((score, level) => {
-    alert(`Game Over!\nScore: ${score}\nLevel: ${level}`);
+  gameEngine.setGameEndCallback((score, level, reason) => {
+    let msg = "Game Over!";
+    if (reason === "Bomb") msg = "💥 BOOM! You hit a bomb!";
+    else if (reason === "Timeout") msg = "⏰ Time's Up!";
+
+    alert(`${msg}\nScore: ${score}\nLevel: ${level}`);
     // Clear items
     const items = document.querySelectorAll(".item");
     items.forEach(el => el.remove());
