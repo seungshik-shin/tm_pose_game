@@ -213,6 +213,9 @@ class GameEngine {
           this.notifyEffects();
           // Sound effect for shield break?
         } else {
+          window.soundManager.playExplosion();
+          document.getElementById("game-area").classList.add("shake");
+          setTimeout(() => document.getElementById("game-area").classList.remove("shake"), 500);
           this.stop("Bomb"); // Game Over
         }
         break;
@@ -231,8 +234,23 @@ class GameEngine {
         break;
       case "Apple":
       default:
+        window.soundManager.playCoin();
         this.addScore(100);
         break;
+    }
+
+    // Visual Pop for score (hacky DOM access from Engine, but keeps it simple)
+    if (item.points > 0) {
+      const el = document.getElementById(item.id);
+      if (el) {
+        const popup = document.createElement("div");
+        popup.className = "score-popup";
+        popup.innerText = `+${item.points}`;
+        popup.style.left = el.style.left;
+        popup.style.top = el.style.top;
+        document.getElementById("game-area").appendChild(popup);
+        setTimeout(() => popup.remove(), 800);
+      }
     }
   }
 

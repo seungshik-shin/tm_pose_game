@@ -15,7 +15,12 @@ const basket = document.getElementById("basket");
 const scoreBoard = document.getElementById("score-board");
 const timerBoard = document.getElementById("timer-board");
 const levelBoard = document.getElementById("level-board");
+const highscoreBoard = document.getElementById("highscore-board");
 const gameStartBtn = document.getElementById("gameStartBtn");
+
+// Load High Score
+const savedScore = localStorage.getItem("highScore") || 0;
+if (highscoreBoard) highscoreBoard.innerText = `Best: ${savedScore}`;
 
 /**
  * Initialize Camera & Pose Engine
@@ -158,8 +163,19 @@ function setupGameCallbacks() {
 
   // Item Remove
   gameEngine.setItemRemoveCallback((itemId) => {
-    const el = document.getElementById(itemId);
-    if (el) el.remove();
+    if (el) {
+      // Visual Effect for Catching
+      // We know it's a removal, but let's check if it was 'caught' or 'missed' logic?
+      // Actually gameEngine removes items when caught OR misses.
+      // For simplicity, let's just play sound here if it was a positive catch?
+      // Better: Hook into gameEngine's event?
+      // Since `onItemRemove` is generic, we might want a specific `onItemCatch` event in GameEngine
+      // But we can approximate: if we play sound in gameEngine, it's easier.
+      // Wait, SoundManager is global now. Let's use it in gameEngine or here?
+      // Let's keep visual logic here.
+
+      el.remove();
+    }
   });
 
   // Render Loop (Update Item Positions)
@@ -180,11 +196,21 @@ function setupGameCallbacks() {
 
   // Game End
   gameEngine.setGameEndCallback((score, level, reason) => {
-    let msg = "Game Over!";
-    if (reason === "Bomb") msg = "💥 BOOM! You hit a bomb!";
-    else if (reason === "Timeout") msg = "⏰ Time's Up!";
+    // Sound
+    window.soundManager.playGameOver();
 
-    alert(`${msg}\nScore: ${score}\nLevel: ${level}`);
+    // High Score Logic
+    const currentHigh = localStorage.getItem("highScore") || 0;
+    if (score > currentHigh) {
+      localStorage.setItem("highScore", score);
+      highscoreBoard.innerText = `Best: ${score}`;
+      alert(`🎉 New High Score: ${score}!\nLevel: ${level}`);
+    } else {
+      let msg = "Game Over!";
+      if (reason === "Bomb") msg = "💥 BOOM! You hit a bomb!";
+      else if (reason === "Timeout") msg = "⏰ Time's Up!";
+      alert(`${msg}\nScore: ${score}\nLevel: ${level}`);
+    }
     // Clear items
     const items = document.querySelectorAll(".item");
     items.forEach(el => el.remove());
