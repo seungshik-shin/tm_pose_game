@@ -76,6 +76,9 @@ async function init() {
 /**
  * Setup Game Callbacks
  */
+/**
+ * Setup Game Callbacks
+ */
 function setupGameCallbacks() {
   // Score & Level
   gameEngine.setScoreChangeCallback((score, level) => {
@@ -100,6 +103,32 @@ function setupGameCallbacks() {
     basket.style.left = left;
   });
 
+  // Active Effects UI
+  gameEngine.setEffectChangeCallback((effects) => {
+    // Shield Visual
+    if (effects.shield) {
+      basket.innerText = "🧺🛡️";
+      basket.style.border = "3px solid gold";
+    } else {
+      basket.innerText = "🧺";
+      basket.style.border = "none";
+    }
+
+    // Magnet Visual
+    if (effects.magnet) {
+      basket.style.boxShadow = "0 0 20px purple";
+    } else if (!effects.shield) {
+      basket.style.boxShadow = "none";
+    }
+
+    // Time Slow Visual
+    if (effects.timeSlow) {
+      timerBoard.style.textShadow = "0 0 10px blue";
+    } else {
+      timerBoard.style.textShadow = "2px 2px 0 #000";
+    }
+  });
+
   // Item Spawn
   gameEngine.setItemSpawnCallback((item) => {
     const el = document.createElement("div");
@@ -107,9 +136,14 @@ function setupGameCallbacks() {
     el.className = "item";
 
     // Content
-    if (item.type === "Apple") el.innerText = "🍎";
-    else if (item.type === "Banana") el.innerText = "🍌";
-    else if (item.type === "Bomb") el.innerText = "💣";
+    switch (item.type) {
+      case "Apple": el.innerText = "🍎"; break;
+      case "Banana": el.innerText = "🍌"; break;
+      case "Bomb": el.innerText = "💣"; break;
+      case "Shield": el.innerText = "🛡️"; break;
+      case "Magnet": el.innerText = "🧲"; break;
+      case "Time": el.innerText = "⏳"; break;
+    }
 
     // X Position
     let left = "50%";
@@ -134,6 +168,12 @@ function setupGameCallbacks() {
       const el = document.getElementById(item.id);
       if (el) {
         el.style.top = `${item.y}%`;
+
+        // Update Horizontal Position (for Magnet effect)
+        let left = "50%";
+        if (item.lane === "Left") left = "16%";
+        else if (item.lane === "Right") left = "84%";
+        el.style.left = left;
       }
     });
   });
@@ -145,6 +185,11 @@ function setupGameCallbacks() {
     const items = document.querySelectorAll(".item");
     items.forEach(el => el.remove());
 
+    // Reset Visuals
+    basket.innerText = "🧺";
+    basket.style.border = "none";
+    basket.style.boxShadow = "none";
+
     gameStartBtn.disabled = false;
     gameStartBtn.innerText = "Restart Game";
   });
@@ -154,6 +199,23 @@ function startGame() {
   gameStartBtn.disabled = true;
   gameEngine.start({ timeLimit: 60 });
 }
+
+// Keyboard Controls
+window.addEventListener("keydown", (e) => {
+  if (!gameEngine || !gameEngine.isGameActive) return;
+
+  switch (e.key) {
+    case "ArrowLeft":
+      gameEngine.onPoseDetected("Left");
+      break;
+    case "ArrowRight":
+      gameEngine.onPoseDetected("Right");
+      break;
+    case "ArrowDown":
+      gameEngine.onPoseDetected("Center");
+      break;
+  }
+});
 
 function stop() {
   if (poseEngine) poseEngine.stop();
