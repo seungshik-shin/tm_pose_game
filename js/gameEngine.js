@@ -1,9 +1,12 @@
 /**
  * gameEngine.js
- * 게임 단계, 명령, 점수, 제한시간 등 게임 규칙 전체를 담당
+ * Sky Fruit Catcher Game Logic
  *
- * 포즈 인식을 활용한 게임 로직을 관리하는 엔진
- * (현재는 기본 템플릿이므로 향후 게임 로직 추가 가능)
+ * Mechanics:
+ * - Basket moves based on Pose (Left, Center, Right)
+ * - Fruits (Apple, Banana) and Bombs fall from the sky
+ * - Catch Fruit -> Score Up
+ * - Catch Bomb -> Game Over
  */
 
 class GameEngine {
@@ -11,53 +14,69 @@ class GameEngine {
     this.score = 0;
     this.level = 1;
     this.timeLimit = 0;
-    this.currentCommand = null;
     this.isGameActive = false;
     this.gameTimer = null;
-    this.onCommandChange = null; // 명령 변경 콜백
-    this.onScoreChange = null; // 점수 변경 콜백
-    this.onGameEnd = null; // 게임 종료 콜백
+    this.spawnTimer = null;
+    this.gameLoopId = null;
+
+    // Callbacks
+    this.onScoreChange = null;
+    this.onGameEnd = null;
+    this.onTimeUpdate = null; // New: Update timer UI
+    this.onItemSpawn = null;  // New: Render item
+    this.onItemRemove = null; // New: Remove item
+    this.onBasketMove = null; // New: Move basket UI
+
+    // Game State
+    this.currentPose = "Center"; // Default pose
+    this.items = []; // Current falling items: { id, type, x, y, speed }
+    this.itemCounter = 0;
+    this.basketPosition = "Center"; // Left, Center, Right
+
+    // Settings
+    this.spawnRate = 2000; // ms (Slower start)
+    this.baseSpeed = 0.5;
   }
 
-  /**
-   * 게임 시작
-   * @param {Object} config - 게임 설정 { timeLimit, commands }
-   */
   start(config = {}) {
+    if (this.isGameActive) return;
+
     this.isGameActive = true;
     this.score = 0;
     this.level = 1;
-    this.timeLimit = config.timeLimit || 60; // 기본 60초
-    this.commands = config.commands || []; // 게임 명령어 배열
+    this.timeLimit = config.timeLimit || 60;
+    this.items = [];
+    this.currentPose = "Center";
+    this.basketPosition = "Center";
+    this.baseSpeed = 0.3;
 
-    if (this.timeLimit > 0) {
-      this.startTimer();
-    }
-
-    // 첫 번째 명령 발급 (게임 모드일 경우)
-    if (this.commands.length > 0) {
-      this.issueNewCommand();
-    }
+    this.startTimer();
+    this.startSpawning();
+    this.startGameLoop();
   }
 
-  /**
-   * 게임 중지
-   */
   stop() {
     this.isGameActive = false;
-    this.clearTimer();
+    clearInterval(this.gameTimer);
+    clearTimeout(this.spawnTimer);
+    cancelAnimationFrame(this.gameLoopId);
 
     if (this.onGameEnd) {
       this.onGameEnd(this.score, this.level);
     }
   }
 
-  /**
-   * 타이머 시작
-   */
   startTimer() {
     this.gameTimer = setInterval(() => {
       this.timeLimit--;
+      if (this.onTimeUpdate) this.onTimeUpdate(this.timeLimit);
+
+      // Level Up every 20 seconds
+      if (this.timeLimit === 40 || this.timeLimit === 20) {
+        this.level++;
+        this.baseSpeed += 0.1; // Increase speed
+        if (this.onScoreChange) this.onScoreChange(this.score, this.level); // Update UI
+      }
 
       if (this.timeLimit <= 0) {
         this.stop();
@@ -65,98 +84,158 @@ class GameEngine {
     }, 1000);
   }
 
+  startSpawning() {
+    const spawn = () => {
+      if (!this.isGameActive) return;
+
+      this.spawnItem();
+
+      // Adjust spawn rate based on level
+      // Level 1: 2000ms
+      // Level 2: 1800ms
+      // Level 3: 1600ms
+      let nextSpawnTime = 2000 - (this.level * 200);
+      if (nextSpawnTime < 800) nextSpawnTime = 800; // Min spawn time
+
+      this.spawnTimer = setTimeout(spawn, nextSpawnTime);
+    };
+    spawn();
+  }
+
+  spawnItem() {
+    const lanes = ["Left", "Center", "Right"];
+    const lane = lanes[Math.floor(Math.random() * lanes.length)];
+
+    // Item Type Probabilities
+    // Level 1: 10% Bomb
+    // Level 2: 20% Bomb
+    // Level 3: 30% Bomb
+    const bombChance = 0.1 * this.level;
+    const rand = Math.random();
+
+    let type = "Apple";
+    let points = 100;
+
+    if (rand < bombChance) {
+      type = "Bomb";
+      points = 0;
+    } else if (rand < bombChance + 0.3) { // 30% chance for Banana after bomb check
+      type = "Banana";
+      points = 200;
+    }
+
+    const item = {
+      id: `item_${this.itemCounter++}`,
+      type: type,
+      points: points,
+      lane: lane,
+      y: 0, // Top of screen (0%)
+      speed: this.baseSpeed + (type === "Banana" ? 0.2 : 0) // Bananas are faster
+    };
+
+    this.items.push(item);
+    if (this.onItemSpawn) this.onItemSpawn(item);
+  }
+
   /**
-   * 타이머 정리
+   * Main Game Loop (Physics & Collision)
    */
-  clearTimer() {
-    if (this.gameTimer) {
-      clearInterval(this.gameTimer);
-      this.gameTimer = null;
+  startGameLoop() {
+    const loop = () => {
+      if (!this.isGameActive) return;
+
+      this.updatePhysics();
+      this.gameLoopId = requestAnimationFrame(loop);
+    };
+    this.gameLoopId = requestAnimationFrame(loop);
+  }
+
+  updatePhysics() {
+    // Move Items
+    this.items.forEach(item => {
+      item.y += item.speed;
+      if (this.onItemSpawn) {
+        // We re-use onItemSpawn or create a new onItemUpdate to move visual elements
+        // For simplicity, let's assume the main.js will handle the visual update loop 
+        // OR we send position updates.
+      }
+    });
+
+    // Check Collisions
+    // Basket is at the bottom, let's say y > 85% to 95%
+    // We catch if item.y represents bottom of item exceeding basket top
+
+    // Filter out items needed to be removed
+    this.items = this.items.filter(item => {
+      // 1. Off-screen (Missed)
+      if (item.y > 100) {
+        if (this.onItemRemove) this.onItemRemove(item.id);
+        return false;
+      }
+
+      // 2. Caught
+      // Hitbox: y > 80 (basket high) AND lane matches
+      if (item.y > 80 && item.y < 95 && item.lane === this.basketPosition) {
+        this.handleCatch(item);
+        if (this.onItemRemove) this.onItemRemove(item.id);
+        return false; // Remove from array
+      }
+
+      return true;
+    });
+
+    // Request UI update for positions
+    if (this.onRender) this.onRender(this.items);
+  }
+
+  handleCatch(item) {
+    if (item.type === "Bomb") {
+      // Game Over
+      this.stop();
+    } else {
+      this.addScore(item.points);
+      // Effect?
     }
   }
 
   /**
-   * 새로운 명령 발급
-   */
-  issueNewCommand() {
-    if (this.commands.length === 0) return;
-
-    const randomIndex = Math.floor(Math.random() * this.commands.length);
-    this.currentCommand = this.commands[randomIndex];
-
-    if (this.onCommandChange) {
-      this.onCommandChange(this.currentCommand);
-    }
-  }
-
-  /**
-   * 포즈 인식 결과 처리
-   * @param {string} detectedPose - 인식된 포즈 이름
+   * Pose Input Handler
+   * @param {string} detectedPose 
    */
   onPoseDetected(detectedPose) {
     if (!this.isGameActive) return;
 
-    // 현재 명령과 일치하는지 확인
-    if (this.currentCommand && detectedPose === this.currentCommand) {
-      this.addScore(10); // 점수 추가
-      this.issueNewCommand(); // 새로운 명령 발급
+    // Update Basket Position
+    if (["Left", "Center", "Right"].includes(detectedPose)) {
+      this.basketPosition = detectedPose;
+      if (this.onBasketMove) this.onBasketMove(this.basketPosition);
     }
   }
 
-  /**
-   * 점수 추가
-   * @param {number} points - 추가할 점수
-   */
   addScore(points) {
     this.score += points;
-
-    // 레벨업 로직 (예: 100점마다)
-    if (this.score >= this.level * 100) {
-      this.level++;
-    }
-
     if (this.onScoreChange) {
       this.onScoreChange(this.score, this.level);
     }
   }
 
-  /**
-   * 명령 변경 콜백 등록
-   * @param {Function} callback - (command) => void
-   */
-  setCommandChangeCallback(callback) {
-    this.onCommandChange = callback;
-  }
+  // Setters for Callbacks
+  setScoreChangeCallback(params) { this.onScoreChange = params; }
+  setGameEndCallback(params) { this.onGameEnd = params; }
+  setBasketMoveCallback(params) { this.onBasketMove = params; }
+  setItemSpawnCallback(params) { this.onItemSpawn = params; }
+  setItemRemoveCallback(params) { this.onItemRemove = params; }
+  setRenderCallback(params) { this.onRender = params; } // Update item positions
+  setTimeUpdateCallback(params) { this.onTimeUpdate = params; }
 
-  /**
-   * 점수 변경 콜백 등록
-   * @param {Function} callback - (score, level) => void
-   */
-  setScoreChangeCallback(callback) {
-    this.onScoreChange = callback;
-  }
-
-  /**
-   * 게임 종료 콜백 등록
-   * @param {Function} callback - (finalScore, finalLevel) => void
-   */
-  setGameEndCallback(callback) {
-    this.onGameEnd = callback;
-  }
-
-  /**
-   * 현재 게임 상태 반환
-   */
   getGameState() {
     return {
       isActive: this.isGameActive,
       score: this.score,
       level: this.level,
-      timeRemaining: this.timeLimit,
-      currentCommand: this.currentCommand
+      basketPosition: this.basketPosition
     };
   }
 }
 
-// 전역으로 내보내기
 window.GameEngine = GameEngine;
