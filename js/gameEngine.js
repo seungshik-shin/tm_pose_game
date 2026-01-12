@@ -213,7 +213,6 @@ class GameEngine {
           this.notifyEffects();
           // Sound effect for shield break?
         } else {
-        } else {
           this.stop("Bomb"); // Game Over
         }
         break;

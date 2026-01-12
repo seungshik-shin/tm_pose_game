@@ -67,7 +67,7 @@ async function init() {
 
   } catch (error) {
     console.error("Init failed:", error);
-    alert("Camera initialization failed.");
+    alert("Camera initialization failed: " + error);
     startBtn.disabled = false;
     startBtn.innerText = "Camera On";
   }
