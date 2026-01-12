@@ -213,7 +213,7 @@ class GameEngine {
           this.notifyEffects();
           // Sound effect for shield break?
         } else {
-          window.soundManager.playExplosion();
+          if (window.soundManager) window.soundManager.playExplosion();
           document.getElementById("game-area").classList.add("shake");
           setTimeout(() => document.getElementById("game-area").classList.remove("shake"), 500);
           this.stop("Bomb"); // Game Over
@@ -234,7 +234,7 @@ class GameEngine {
         break;
       case "Apple":
       default:
-        window.soundManager.playCoin();
+        if (window.soundManager) window.soundManager.playCoin();
         this.addScore(100);
         break;
     }

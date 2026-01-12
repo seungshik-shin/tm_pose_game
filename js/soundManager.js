@@ -5,8 +5,13 @@
  */
 class SoundManager {
     constructor() {
-        this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        this.isMuted = false;
+        try {
+            this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        } catch (e) {
+            console.error("Web Audio API not supported:", e);
+            this.isMuted = true;
+        }
+
     }
 
     playTone(freq, type, duration) {
